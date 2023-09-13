@@ -27,11 +27,13 @@ import {
   OnChanges,
   Renderer2,
   NgZone,
+  ComponentFactoryResolver,
+  ViewContainerRef,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { merge, Subject, BehaviorSubject, from } from 'rxjs';
-import { startWith, switchMap, takeUntil, filter, map, finalize, take } from 'rxjs/operators';
+import { startWith, switchMap, takeUntil, filter, map, finalize, take, tap } from 'rxjs/operators';
 
 import { NbStatusService } from '../../services/status.service';
 import {
@@ -55,6 +57,7 @@ import { NB_SELECT_INJECTION_TOKEN } from './select-injection-tokens';
 import { NbFormFieldControl, NbFormFieldControlConfig } from '../form-field/form-field-control';
 import { NbFocusMonitor } from '../cdk/a11y/a11y.module';
 import { NbScrollStrategies } from '../cdk/adapter/block-scroll-strategy-adapter';
+import { NbOptionGroupComponent } from '../option/option-group.component';
 
 export type NbSelectCompareFunction<T = any> = (v1: any, v2: any) => boolean;
 export type NbSelectAppearance = 'outline' | 'filled' | 'hero';
@@ -525,6 +528,8 @@ export class NbSelectComponent
    * Select size, available sizes:
    * `tiny`, `small`, `medium` (default), `large`, `giant`
    */
+
+  @Input() isInfinite: boolean = false;
   @Input() size: NbComponentSize = 'medium';
 
   /**
@@ -714,7 +719,16 @@ export class NbSelectComponent
    * List of `NbOptionComponent`'s components passed as content.
    * TODO maybe it would be better provide wrapper
    * */
-  @ContentChildren(NbOptionComponent, { descendants: true }) options: QueryList<NbOptionComponent>;
+
+  @ContentChildren(forwardRef(() => NbOptionComponent), { descendants: true }) options: QueryList<NbOptionComponent>;
+  @ContentChildren(forwardRef(() => NbOptionGroupComponent), { descendants: true })
+  optionGroups: QueryList<NbOptionGroupComponent>;
+
+  optionsPaginated: NbOptionComponent[][] = [];
+  optionsArray: NbOptionComponent[] = [];
+  optionsToArray: NbOptionComponent[] = [];
+  //itemsize in px for virtual scroll // TODO make it dynamic based on item size. It seems to work fine even if some items do not fit
+  itemSize: number = 40;
 
   /**
    * Custom select label, will be rendered instead of default enumeration with coma.
@@ -728,6 +742,8 @@ export class NbSelectComponent
 
   @ViewChild('selectButton', { read: ElementRef }) button: ElementRef<HTMLButtonElement>;
 
+  @ViewChild('listContainer') listContainer;
+
   /**
    * Determines is select opened.
    * */
@@ -740,7 +756,6 @@ export class NbSelectComponent
    * List of selected options.
    * */
   selectionModel: NbOptionComponent[] = [];
-
   positionStrategy: NbAdjustableConnectedPositionStrategy;
 
   /**
@@ -868,18 +883,30 @@ export class NbSelectComponent
   }
 
   ngAfterContentInit() {
+    // console.log('View initialized', this.options)
+    this.updatePaginatedOptions();
     this.options.changes
       .pipe(
+        tap(() => {
+          // console.log('options changed to', this.options)
+        }),
         startWith(this.options),
         filter(() => this.queue != null && this.canSelectValue()),
         // Call 'writeValue' when current change detection run is finished.
         // When writing is finished, change detection starts again, since
         // microtasks queue is empty.
         // Prevents ExpressionChangedAfterItHasBeenCheckedError.
-        switchMap((options: QueryList<NbOptionComponent>) => from(Promise.resolve(options))),
+        switchMap((options: QueryList<NbOptionComponent>) => {
+          return from(Promise.resolve(options));
+        }),
         takeUntil(this.destroy$),
       )
-      .subscribe(() => this.writeValue(this.queue));
+      .subscribe(() => {
+        this.writeValue(this.queue);
+      });
+    this.options.changes.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.updatePaginatedOptions();
+    });
   }
 
   ngAfterViewInit() {
@@ -961,7 +988,8 @@ export class NbSelectComponent
   /**
    * Selects option or clear all selected options if value is null.
    * */
-  protected handleOptionClick(option: NbOptionComponent) {
+  handleOptionClick(option: NbOptionComponent) {
+    console.log('handle option click was fired', option);
     this.queue = null;
     if (option.value == null) {
       this.reset();
@@ -972,6 +1000,42 @@ export class NbSelectComponent
     this.cd.markForCheck();
   }
 
+  protected updatePaginatedOptions() {
+    console.log('updatePaginatedOptions', this.options.toArray());
+    // this.optionsArray = this.options.toArray()
+    this.optionsToArray = this.options.toArray();
+    //   this.itemSize = this.optionsArray[0].elementRef.nativeElement.height
+    // if( this.optionsToArray[0] instanceof NbOptionGroupComponent) {
+    //   console.log(this.optionsToArray[0].options)
+    // }
+    // const optionsToArray = this.options.toArray()
+    // this.threshHold = this.optionsToArray[0].elementRef.nativeElement.height * this.pageSize
+    // this.pagesTotal = Math.ceil(this.optionsToArray.length / this.pageSize)
+    // this.optionsPaginated = Array.from({length: this.pagesTotal}, (_, i) =>
+    // this.optionsToArray.slice(i * this.pageSize, i * this.pageSize + this.pageSize))
+    // console.log('paginated options is', this.optionsPaginated);
+    // this.loadOptions(this.optionsPaginated[0])
+    // this.optionsArray = this.optionsPaginated[0]
+    // console.log(this.optionsArray[0].elementRef.nativeElement)
+
+    // merge(...this.optionsToArray.map((option) => option.click)).pipe(takeUntil(this.destroy$),).subscribe((clickedOption: NbOptionComponent) => this.handleOptionClick(clickedOption));
+    this.cd.markForCheck();
+  }
+
+  // protected loadOptions(optionComponents: NbOptionComponent[]) {
+  //   const containerRef = this.viewContainerRef
+  //   containerRef.clear()
+  //   optionComponents.forEach((component) => {
+  //     // const componentFactory = this.componentFactoryResolver.resolveComponentFactory(component)
+  //     // if (component instanceof NbOptionComponent) {
+  //       const componentRef = containerRef.insert(component.elementRef.nativeElement);
+  //     // }
+  //     // console.log(component)
+  //   })
+  // }
+
+  // }
+
   /**
    * Deselect all selected options.
    * */
@@ -981,6 +1045,7 @@ export class NbSelectComponent
     this.hide();
     this.button.nativeElement.focus();
     this.emitSelected(this.multiple ? [] : null);
+    this.cd.markForCheck();
   }
 
   /**
@@ -1010,6 +1075,7 @@ export class NbSelectComponent
     this.button.nativeElement.focus();
 
     this.emitSelected(option.value);
+    this.cd.markForCheck();
   }
 
   /**
@@ -1023,7 +1089,7 @@ export class NbSelectComponent
       this.selectionModel.push(option);
       option.select();
     }
-
+    this.cd.markForCheck();
     this.emitSelected(this.selectionModel.map((opt: NbOptionComponent) => opt.value));
   }
 
@@ -1218,6 +1284,7 @@ export class NbSelectComponent
       corresponding.select();
       this.selectionModel.push(corresponding);
     }
+    this.cd.markForCheck();
   }
 
   protected shouldShow(): boolean {

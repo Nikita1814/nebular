@@ -56,3 +56,12 @@ nb-icon {
 :host(.open) nb-icon {
   transform: translateY(-50%) rotate(180deg);
 }
+
+:ng-deep {
+  nb-option {
+    height: 40px !important;
+  }
+}
+cdk-virtual-scroll-viewport {
+  min-height: 120px;
+}

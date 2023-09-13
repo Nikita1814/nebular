@@ -16,6 +16,7 @@ import { convertToBoolProperty, NbBooleanInput } from '../helpers';
 import { NbLayoutScrollService } from '../../services/scroll.service';
 import { NbLayoutRulerService } from '../../services/ruler.service';
 import { NbListItemComponent } from './list.component';
+import { NbOptionComponent } from '../option/option.component';
 
 export class NbScrollableContainerDimensions {
   scrollTop: number;
@@ -116,6 +117,8 @@ export class NbInfiniteListDirective implements AfterViewInit, OnDestroy {
   }
 
   @ContentChildren(NbListItemComponent) listItems: QueryList<NbListItemComponent>;
+  @ContentChildren(NbOptionComponent) optionItems: QueryList<NbOptionComponent>;
+  items: QueryList<NbOptionComponent | NbListItemComponent>;
 
   constructor(
     private elementRef: ElementRef,
@@ -124,6 +127,7 @@ export class NbInfiniteListDirective implements AfterViewInit, OnDestroy {
   ) {}
 
   ngAfterViewInit() {
+    this.items = this.listItems.length ? this.listItems : this.optionItems;
     merge(this.windowScroll$, this.elementScroll$)
       .pipe(
         switchMap(() => this.getContainerDimensions()),

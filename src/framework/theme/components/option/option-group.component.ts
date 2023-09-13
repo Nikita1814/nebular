@@ -13,6 +13,8 @@ import {
   Input,
   OnDestroy,
   QueryList,
+  TemplateRef,
+  ViewChild,
 } from '@angular/core';
 import { takeUntil } from 'rxjs/operators';
 import { from, Subject } from 'rxjs';
@@ -37,12 +39,17 @@ import { NbOptionComponent } from './option.component';
   styleUrls: ['./option-group.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span class="option-group-title">{{ title }}</span>
-    <ng-content select="nb-option, ng-container"></ng-content>
+    <ng-template #optionGroupContent>
+      <span class="option-group-title">{{ title }}</span>
+      <ng-content select="nb-option, ng-container"></ng-content>
+    </ng-template>
+
+    <ng-container *ngIf="templateToDisplay; else optionGroupContent">
+      <ng-container *ngTemplateOutlet="templateToDisplay"></ng-container>
+    </ng-container>
   `,
 })
 export class NbOptionGroupComponent implements AfterContentInit, OnDestroy {
-
   protected destroy$ = new Subject<void>();
 
   @Input() title: string;
@@ -51,6 +58,10 @@ export class NbOptionGroupComponent implements AfterContentInit, OnDestroy {
   get disabled(): boolean {
     return this._disabled;
   }
+
+  @ViewChild(TemplateRef, { static: true }) template: TemplateRef<any>;
+  @Input() templateToDisplay?: TemplateRef<unknown>;
+
   set disabled(value: boolean) {
     this._disabled = convertToBoolProperty(value);
 
@@ -73,9 +84,7 @@ export class NbOptionGroupComponent implements AfterContentInit, OnDestroy {
       this.asyncUpdateOptionsDisabledState();
     }
 
-    this.options.changes
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => this.asyncUpdateOptionsDisabledState());
+    this.options.changes.pipe(takeUntil(this.destroy$)).subscribe(() => this.asyncUpdateOptionsDisabledState());
   }
 
   ngOnDestroy() {
@@ -102,5 +111,3 @@ export class NbOptionGroupComponent implements AfterContentInit, OnDestroy {
       .subscribe(() => this.updateOptionsDisabledState());
   }
 }
-
-

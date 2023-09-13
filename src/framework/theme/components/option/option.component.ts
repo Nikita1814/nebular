@@ -20,6 +20,8 @@ import {
   AfterViewInit,
   NgZone,
   Renderer2,
+  ViewChild,
+  TemplateRef,
 } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 
@@ -82,15 +84,19 @@ import { NbSelectComponent } from '../select/select.component';
   styleUrls: ['./option.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <nb-checkbox *ngIf="withCheckbox"
-                 [checked]="selected"
-                 [disabled]="disabled"
-                 aria-hidden="true">
-    </nb-checkbox>
-    <ng-content></ng-content>
+    <ng-template #optionContent>
+      <nb-checkbox *ngIf="withCheckbox" [checked]="selected" [disabled]="disabled" aria-hidden="true"> </nb-checkbox>
+      <ng-content></ng-content>
+    </ng-template>
+
+    <ng-container *ngIf="templateToDisplay; else optionContent">
+      <ng-container *ngTemplateOutlet="templateToDisplay"></ng-container>
+    </ng-container>
   `,
 })
 export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbFocusableOption, NbHighlightableOption {
+  @ViewChild(TemplateRef, { static: true }) template: TemplateRef<any>;
+  @Input() templateToDisplay?: TemplateRef<unknown>;
 
   protected disabledByGroup = false;
 
@@ -113,6 +119,7 @@ export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbF
    * Fires value when option selection change.
    * */
   @Output() selectionChange: EventEmitter<NbOptionComponent<T>> = new EventEmitter();
+  @Output() optionClick: EventEmitter<NbOptionComponent<T>> = new EventEmitter();
 
   /**
    * Fires when option clicked
@@ -122,7 +129,7 @@ export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbF
     return this.click$.asObservable();
   }
 
-  selected: boolean = false;
+  @Input() selected: boolean = false;
   protected parent: NbSelectComponent;
   protected alive: boolean = true;
 
@@ -132,11 +139,13 @@ export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbF
   @HostBinding('attr.id')
   id: string = `nb-option-${lastOptionId++}`;
 
-  constructor(@Optional() @Inject(NB_SELECT_INJECTION_TOKEN) parent,
-              protected elementRef: ElementRef,
-              protected cd: ChangeDetectorRef,
-              protected zone: NgZone,
-              protected renderer: Renderer2) {
+  constructor(
+    @Optional() @Inject(NB_SELECT_INJECTION_TOKEN) parent,
+    public elementRef: ElementRef,
+    protected cd: ChangeDetectorRef,
+    protected zone: NgZone,
+    protected renderer: Renderer2,
+  ) {
     this.parent = parent;
   }
 
@@ -146,9 +155,11 @@ export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbF
 
   ngAfterViewInit() {
     // TODO: #2254
-    this.zone.runOutsideAngular(() => setTimeout(() => {
-      this.renderer.addClass(this.elementRef.nativeElement, 'nb-transition');
-    }));
+    this.zone.runOutsideAngular(() =>
+      setTimeout(() => {
+        this.renderer.addClass(this.elementRef.nativeElement, 'nb-transition');
+      }),
+    );
   }
 
   /**
@@ -188,7 +199,7 @@ export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbF
   @HostBinding('class.active')
   get activeClass() {
     return this._active;
-  };
+  }
   protected _active: boolean = false;
 
   @HostListener('click', ['$event'])
@@ -196,6 +207,7 @@ export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbF
   @HostListener('keydown.enter', ['$event'])
   onClick(event) {
     this.click$.next(this);
+    this.optionClick.emit(this);
 
     // Prevent scroll on space click, etc.
     event.preventDefault();
@@ -252,5 +264,4 @@ export class NbOptionComponent<T = any> implements OnDestroy, AfterViewInit, NbF
     this._active = false;
     this.cd.markForCheck();
   }
-
 }

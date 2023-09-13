@@ -1,7 +1,19 @@
-import { ChangeDetectionStrategy, Component, Input, HostBinding } from '@angular/core';
-
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Input,
+  HostBinding,
+  ContentChildren,
+  QueryList,
+  AfterContentInit,
+  OnDestroy,
+  forwardRef,
+} from '@angular/core';
+import { startWith, filter, switchMap, takeUntil } from 'rxjs/operators';
 import { NbComponentSize } from '../component-size';
 import { NbPosition } from '../cdk/overlay/overlay-position';
+import { NbOptionComponent } from './option.component';
+import { Subject } from 'rxjs';
 
 /**
  * The `NbOptionListComponent` is container component for `NbOptionGroupComponent` and`NbOptionComponent` list.
@@ -29,7 +41,6 @@ import { NbPosition } from '../cdk/overlay/overlay-position';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NbOptionListComponent<T> {
-
   @Input() size: NbComponentSize = 'medium';
 
   @Input() position: NbPosition;
@@ -68,4 +79,8 @@ export class NbOptionListComponent<T> {
   get sizeGiant(): boolean {
     return this.size === 'giant';
   }
+  @ContentChildren(forwardRef(() => NbOptionComponent), { descendants: true }) options: QueryList<NbOptionComponent>;
+  optionsToArray: NbOptionComponent[] = [];
+
+  protected destroy$ = new Subject<void>();
 }
